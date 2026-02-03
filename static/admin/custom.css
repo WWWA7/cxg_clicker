@@ -1,0 +1,75 @@
+:root {
+  --admin-bg: #fff7fb;
+  --admin-card: #ffffff;
+  --admin-primary: #ff7fa0;
+  --admin-primary-dark: #ff5f86;
+  --admin-text: #3b2f2f;
+  --admin-muted: #8b6f7a;
+}
+
+body {
+  background: var(--admin-bg);
+}
+
+#header {
+  background: linear-gradient(90deg, #ff9eb5, #ff7fa0);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(255, 120, 150, 0.25);
+}
+
+#branding h1 a,
+#branding h1 {
+  color: #fff !important;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+#user-tools a {
+  color: #fff !important;
+}
+
+#content {
+  padding: 24px;
+}
+
+.module, .inline-group, .app-{{ app_label }} {
+  background: var(--admin-card);
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+  border: 1px solid #f3d2df;
+}
+
+fieldset {
+  border-radius: 12px;
+  border: 1px solid #f3d2df;
+}
+
+.button, input[type=submit], input[type=button], .submit-row input {
+  background: var(--admin-primary);
+  border: none;
+  border-radius: 10px;
+  padding: 6px 12px;
+  color: #fff;
+  font-weight: 600;
+}
+
+.button:hover, input[type=submit]:hover, input[type=button]:hover, .submit-row input:hover {
+  background: var(--admin-primary-dark);
+}
+
+table#result_list thead th {
+  background: #ffe5ee;
+  color: var(--admin-text);
+  border-bottom: 1px solid #f3d2df;
+}
+
+table#result_list tbody tr:nth-child(odd) {
+  background: #fffafd;
+}
+
+#content-main .breadcrumbs {
+  background: #ffe5ee;
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: var(--admin-muted);
+}

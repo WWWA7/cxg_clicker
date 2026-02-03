@@ -1,10 +1,12 @@
-import random
+import time
 from django.utils import timezone
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.core.cache import cache
 from .forms import RegisterForm
 from .models import Building, UserBuilding, GameState, Achievement, UserAchievement, UpgradeCard, UserUpgradeCard
 from .services import (
@@ -12,6 +14,25 @@ from .services import (
     get_user_buildings, compute_rates, tick, get_price,
     check_achievements, get_building_multiplier
 )
+
+MAX_CLICK_BATCH = 500
+CLICK_RATE_WINDOW = 10
+CLICK_RATE_MAX = 1200
+
+
+def _check_click_rate(user, count):
+    key = f"click_rate:{user.id}"
+    now = time.time()
+    data = cache.get(key)
+    if not data or now - data["start"] > CLICK_RATE_WINDOW:
+        cache.set(key, {"start": now, "count": count}, CLICK_RATE_WINDOW)
+        return True
+    if data["count"] + count > CLICK_RATE_MAX:
+        return False
+    data["count"] += count
+    cache.set(key, data, CLICK_RATE_WINDOW)
+    return True
+
 
 def login_view(request):
     if request.user.is_authenticated:
@@ -27,9 +48,11 @@ def login_view(request):
         error = "账号或密码错误"
     return render(request, "auth/login.html", {"error": error})
 
+
 def logout_view(request):
     logout(request)
     return redirect("/login/")
+
 
 def register_view(request):
     if request.user.is_authenticated:
@@ -46,6 +69,8 @@ def register_view(request):
         form = RegisterForm()
     return render(request, "auth/register.html", {"form": form})
 
+
+@ensure_csrf_cookie
 @login_required
 def index(request):
     ensure_buildings()
@@ -97,25 +122,11 @@ def index(request):
         "cards": cards,
     })
 
+
 @login_required
 def state_api(request):
     state = tick(request.user)
-
-    if state.buff_ends_at and timezone.now() > state.buff_ends_at:
-        state.buff_multiplier = 1.0
-        state.buff_ends_at = None
-        state.save()
-
     now = timezone.now()
-    if not state.event_expires_at or now > state.event_expires_at:
-        if not state.last_event_at or (now - state.last_event_at).total_seconds() > 60:
-            if random.random() < 0.05:
-                state.event_id = int(now.timestamp())
-                state.event_multiplier = 2.0
-                state.event_expires_at = now + timezone.timedelta(seconds=20)
-                state.last_event_at = now
-                state.save()
-
     per_second, per_click = compute_rates(request.user, state.upgrade_level, state.buff_multiplier)
 
     buildings = []
@@ -147,11 +158,23 @@ def state_api(request):
         }
     })
 
+
 @login_required
 @require_POST
 def click_batch_api(request):
     state = tick(request.user)
-    count = int(request.POST.get("count", "0"))
+    try:
+        count = int(request.POST.get("count", "0"))
+    except (TypeError, ValueError):
+        return JsonResponse({"ok": False, "error": "点击数无效"}, status=400)
+
+    if count <= 0:
+        return JsonResponse({"ok": False, "error": "点击数无效"}, status=400)
+    if count > MAX_CLICK_BATCH:
+        return JsonResponse({"ok": False, "error": "点击过快，请稍后再试"}, status=429)
+    if not _check_click_rate(request.user, count):
+        return JsonResponse({"ok": False, "error": "点击过快，请稍后再试"}, status=429)
+
     per_second, per_click = compute_rates(request.user, state.upgrade_level, state.buff_multiplier)
     add = int(per_click) * count
     state.apples += add
@@ -168,6 +191,7 @@ def click_batch_api(request):
         "per_second": int(per_second),
         "unlocked": [{"name": a.name, "rule": a.rule} for a in unlocked],
     })
+
 
 @login_required
 @require_POST
@@ -207,27 +231,33 @@ def buy_api(request):
         "unlocked": [{"name": a.name, "rule": a.rule} for a in unlocked],
     })
 
+
 @login_required
 @require_POST
 def upgrade_api(request):
-    state = tick(request.user)
-    price = int(200000 * (1.2 ** state.upgrade_level))
-    if state.apples < price:
-        return JsonResponse({"ok": False, "error": "点数不足"}, status=400)
-    state.apples -= price
-    state.upgrade_level += 1
-    state.save()
+    try:
+        state = tick(request.user)
+        price = int(200000 * (1.2 ** state.upgrade_level))
+        if state.apples < price:
+            return JsonResponse({"ok": False, "error": "点数不足"}, status=400)
+        state.apples -= price
+        state.upgrade_level += 1
+        state.save()
 
-    per_second, per_click = compute_rates(request.user, state.upgrade_level, state.buff_multiplier)
+        per_second, per_click = compute_rates(request.user, state.upgrade_level, state.buff_multiplier)
 
-    return JsonResponse({
-        "ok": True,
-        "apples": state.apples,
-        "upgrade_level": state.upgrade_level,
-        "next_price": int(200000 * (1.2 ** state.upgrade_level)),
-        "per_second": int(per_second),
-        "per_click": int(per_click),
-    })
+        return JsonResponse({
+            "ok": True,
+            "apples": state.apples,
+            "upgrade_level": state.upgrade_level,
+            "next_price": int(200000 * (1.2 ** state.upgrade_level)),
+            "per_second": int(per_second),
+            "per_click": int(per_click),
+        })
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": f"升级失败: {e}"}, status=400)
+
+
 
 @login_required
 @require_POST
@@ -252,6 +282,7 @@ def upgrade_card_api(request):
     per_second, per_click = compute_rates(request.user, state.upgrade_level, state.buff_multiplier)
 
     return JsonResponse({"ok": True, "apples": state.apples, "key": card.key, "per_second": int(per_second), "per_click": int(per_click)})
+
 
 @login_required
 @require_POST

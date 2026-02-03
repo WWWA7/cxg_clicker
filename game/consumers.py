@@ -1,11 +1,11 @@
 import asyncio
-import random
 from django.utils import timezone
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from asgiref.sync import sync_to_async
 from django.core.cache import cache
 from .services import tick, compute_rates, get_user_buildings, get_price, get_building_multiplier
 from .models import GameState
+
 
 class GameConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
@@ -29,23 +29,10 @@ class GameConsumer(AsyncJsonWebsocketConsumer):
             await self.send_json({"type": "state", **payload})
             await asyncio.sleep(2)
 
+
 def build_state_payload(user):
     state = tick(user)
     now = timezone.now()
-
-    if state.buff_ends_at and now > state.buff_ends_at:
-        state.buff_multiplier = 1.0
-        state.buff_ends_at = None
-        state.save()
-
-    if not state.event_expires_at or now > state.event_expires_at:
-        if not state.last_event_at or (now - state.last_event_at).total_seconds() > 60:
-            if random.random() < 0.05:
-                state.event_id = int(now.timestamp())
-                state.event_multiplier = 2.0
-                state.event_expires_at = now + timezone.timedelta(seconds=20)
-                state.last_event_at = now
-                state.save()
 
     per_second, per_click = compute_rates(user, state.upgrade_level, state.buff_multiplier)
 
@@ -64,9 +51,9 @@ def build_state_payload(user):
 
     leaderboard = cache.get("leaderboard")
     if leaderboard is None:
-        top = GameState.objects.order_by("-apples_total")[:5]
+        top = GameState.objects.select_related("user").order_by("-apples_total")[:5]
         leaderboard = [{"name": t.user.username, "score": t.apples_total} for t in top]
-        cache.set("leaderboard", leaderboard, 10)
+        cache.set("leaderboard", leaderboard, 30)
 
     return {
         "apples": state.apples,

@@ -1,0 +1,74 @@
+:root {
+  --cxg-bg: #fff4f8;
+  --cxg-card: #ffffff;
+  --cxg-main: #ff8faa;
+  --cxg-main-dark: #ff6e94;
+  --cxg-text: #3b2f2f;
+  --cxg-muted: #8b6f7a;
+}
+
+body {
+  background: var(--cxg-bg);
+}
+
+#header {
+  background: linear-gradient(90deg, #ffb3c7, #ff8faa);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(255, 130, 170, 0.3);
+}
+
+#branding h1,
+#branding h1 a {
+  color: #fff !important;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+#user-tools a {
+  color: #fff !important;
+}
+
+#content {
+  padding: 24px;
+}
+
+.module, .inline-group, fieldset, .app-{{ app_label }} {
+  background: var(--cxg-card);
+  border-radius: 14px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+  border: 1px solid #f3d2df;
+}
+
+fieldset {
+  border-radius: 14px;
+}
+
+.button, input[type=submit], input[type=button], .submit-row input {
+  background: var(--cxg-main);
+  border: none;
+  border-radius: 10px;
+  padding: 6px 12px;
+  color: #fff;
+  font-weight: 600;
+}
+
+.button:hover, input[type=submit]:hover, input[type=button]:hover, .submit-row input:hover {
+  background: var(--cxg-main-dark);
+}
+
+table#result_list thead th {
+  background: #ffe5ee;
+  color: var(--cxg-text);
+  border-bottom: 1px solid #f3d2df;
+}
+
+table#result_list tbody tr:nth-child(odd) {
+  background: #fffafd;
+}
+
+#content-main .breadcrumbs {
+  background: #ffe5ee;
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: var(--cxg-muted);
+}

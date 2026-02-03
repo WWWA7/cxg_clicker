@@ -27,6 +27,14 @@
   </div>
   <div class="userbar">
     <span>UID：{{ request.user.username }}</span>
+    <span class="login-time">
+      上次登录：
+      {% if request.user.last_login %}
+        {{ request.user.last_login|date:"Y-m-d H:i:s" }}
+      {% else %}
+        首次登录
+      {% endif %}
+    </span>
     <a href="/logout/">退出</a>
   </div>
 </div>
@@ -96,7 +104,7 @@
 
     <div class="sprite-field" id="spriteField"></div>
 
-    <audio id="clickSound" src="/static/audio/click.mp3"></audio>
+    <audio id="clickSound" src="/static/audio/click-zakozako.aac"></audio>
     <audio id="bgm" src="/static/audio/zakozako.aac" loop></audio>
 
     <div class="level-panel">

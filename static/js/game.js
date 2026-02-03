@@ -1,7 +1,14 @@
 function getCSRF() {
-  const meta = document.querySelector('meta[name="csrf-token"]');
-  return meta ? meta.getAttribute("content") : "";
+  const name = "csrftoken=";
+  const parts = document.cookie.split(";").map(v => v.trim());
+  for (const part of parts) {
+    if (part.startsWith(name)) {
+      return part.slice(name.length);
+    }
+  }
+  return "";
 }
+
 
 function formatNumber(n) {
   if (n < 10000) return String(Math.floor(n));
@@ -63,16 +70,31 @@ function flashBuilding(key) {
 }
 
 async function post(url, data) {
-  const form = new FormData();
-  Object.entries(data || {}).forEach(([k, v]) => form.append(k, v));
+  const body = new URLSearchParams();
+  Object.entries(data || {}).forEach(([k, v]) => body.append(k, v));
+
   const res = await fetch(url, {
     method: "POST",
-    body: form,
+    body: body.toString(),
     credentials: "same-origin",
-    headers: { "X-CSRFToken": getCSRF() }
+    headers: {
+      "X-CSRFToken": getCSRF(),
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+    }
   });
-  return res.json();
+
+  const text = await res.text();
+  if (!text) {
+    return { ok: res.ok, error: res.ok ? null : "请求失败" };
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { ok: res.ok, error: text };
+  }
 }
+
+
 
 async function getState() {
   const res = await fetch("/api/state/");
@@ -234,18 +256,26 @@ function updateSprites() {
   if (w <= 0 || h <= 0) return;
 
   for (const s of sprites) {
-    s.x += s.vx * spriteSpeed;
-    s.y += s.vy * spriteSpeed;
+    if (w <= s.size + 2 || h <= s.size + 2) {
+      s.x = Math.max(0, Math.min(s.x, w - s.size));
+      s.y = Math.max(0, Math.min(s.y, h - s.size));
+      s.vx = 0;
+      s.vy = 0;
+    } else {
+      s.x += s.vx * spriteSpeed;
+      s.y += s.vy * spriteSpeed;
 
-    if (s.x <= 0) { s.x = 0; s.vx *= -1; }
-    if (s.y <= 0) { s.y = 0; s.vy *= -1; }
-    if (s.x + s.size >= w) { s.x = w - s.size; s.vx *= -1; }
-    if (s.y + s.size >= h) { s.y = h - s.size; s.vy *= -1; }
+      if (s.x <= 0) { s.x = 0; s.vx *= -1; }
+      if (s.y <= 0) { s.y = 0; s.vy *= -1; }
+      if (s.x + s.size >= w) { s.x = w - s.size; s.vx *= -1; }
+      if (s.y + s.size >= h) { s.y = h - s.size; s.vy *= -1; }
+    }
 
     s.el.style.transform = `translate(${s.x}px, ${s.y}px)`;
   }
   requestAnimationFrame(updateSprites);
 }
+
 
 function layoutSpritesStatic() {
   const field = document.getElementById("spriteField");
@@ -388,6 +418,42 @@ function startLocalTicker() {
   requestAnimationFrame(tick);
 }
 
+let ws = null;
+let wsRetry = 0;
+
+function connectWS() {
+  if (ws) {
+    try { ws.close(); } catch {}
+  }
+  const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+  let host = window.location.host;
+  if (host.startsWith("0.0.0.0")) host = host.replace("0.0.0.0", "localhost");
+  const url = `${scheme}://${host}/ws/game/`;
+  ws = new WebSocket(url);
+
+  ws.addEventListener("open", () => {
+    wsRetry = 0;
+  });
+
+  ws.addEventListener("message", async (evt) => {
+    let data;
+    try { data = JSON.parse(evt.data); } catch { return; }
+    if (data && data.type === "state") {
+      await applyState(data);
+    }
+  });
+
+  ws.addEventListener("close", () => {
+    const delay = Math.min(5000, 500 + wsRetry * 500);
+    wsRetry += 1;
+    setTimeout(connectWS, delay);
+  });
+
+  ws.addEventListener("error", () => {
+    try { ws.close(); } catch {}
+  });
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   formatInitialNumbers();
   rebuildStrip();
@@ -415,11 +481,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const state = await getState();
   await applyState(state);
-
-  setInterval(async () => {
-    const s = await getState();
-    await applyState(s);
-  }, 5000);
+  connectWS();
 
   const clickBtn = document.getElementById("clickBtn");
   const sound = document.getElementById("clickSound");
@@ -484,6 +546,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       currentPerClick = data.per_click;
       document.getElementById("perSecond").textContent = `+${formatNumber(currentPerSecond)}`;
       document.getElementById("perClick").textContent = `+${formatNumber(currentPerClick)}`;
+
+      const s = await getState();
+      await applyState(s);
     });
   });
 
@@ -497,11 +562,18 @@ document.addEventListener("DOMContentLoaded", async () => {
       currentPerClick = data.per_click;
       document.getElementById("perSecond").textContent = `+${formatNumber(currentPerSecond)}`;
       document.getElementById("perClick").textContent = `+${formatNumber(currentPerClick)}`;
+
+      const s = await getState();
+      await applyState(s);
     });
   });
 
   const upgradeBtn = document.getElementById("upgradeBtn");
   upgradeBtn.addEventListener("click", async () => {
+    await flushClicks();
+    const s = await getState();
+    await applyState(s);
+
     const data = await post("/api/upgrade/");
     if (data.ok === false) return toast(data.error || "点数不足", "error");
 
@@ -513,32 +585,90 @@ document.addEventListener("DOMContentLoaded", async () => {
     currentPerClick = data.per_click;
     document.getElementById("perSecond").textContent = `+${formatNumber(currentPerSecond)}`;
     document.getElementById("perClick").textContent = `+${formatNumber(currentPerClick)}`;
+
+    const s2 = await getState();
+    await applyState(s2);
   });
+
 
   const bgm = document.getElementById("bgm");
   const bgmBtn = document.getElementById("bgmBtn");
   const bgmVol = document.getElementById("bgmVol");
+  const audioModal = document.getElementById("audioModal");
+  const audioEnableBtn = document.getElementById("audioEnableBtn");
+  const audioLaterBtn = document.getElementById("audioLaterBtn");
+  const clickSound = document.getElementById("clickSound");
 
   const savedVol = localStorage.getItem("bgmVol");
   bgm.volume = savedVol ? parseFloat(savedVol) : 0.5;
   bgmVol.value = bgm.volume;
 
-  bgm.muted = true;
-  bgm.play().then(() => { bgmBtn.textContent = "暂停BGM"; })
-    .catch(() => { bgmBtn.textContent = "播放BGM"; });
+  function setBgmLabel() {
+    bgmBtn.textContent = bgm.paused ? "播放BGM" : "暂停BGM";
+  }
 
-  function unlockAudio() {
+  function tryPlayMuted() {
+    bgm.muted = true;
+    return bgm.play().then(() => {
+      setBgmLabel();
+    }).catch(() => {
+      setBgmLabel();
+    });
+  }
+
+  function tryPlayWithSound() {
     bgm.muted = false;
     bgm.volume = parseFloat(bgmVol.value);
-    document.removeEventListener("click", unlockAudio);
-    document.removeEventListener("keydown", unlockAudio);
+    return bgm.play().then(() => {
+      setBgmLabel();
+    }).catch(() => {
+      setBgmLabel();
+    });
   }
-  document.addEventListener("click", unlockAudio);
-  document.addEventListener("keydown", unlockAudio);
+
+  function prewarmClickSoundMuted() {
+    if (!clickSound) return;
+    clickSound.muted = true;
+    clickSound.currentTime = 0;
+    clickSound.play().then(() => {
+      clickSound.pause();
+      clickSound.currentTime = 0;
+    }).catch(() => {});
+  }
+
+  tryPlayMuted();
+  prewarmClickSoundMuted();
+
+  audioModal.classList.remove("hidden");
+
+  audioEnableBtn.addEventListener("click", async () => {
+    audioModal.classList.add("hidden");
+    await tryPlayWithSound();
+  });
+
+  audioLaterBtn.addEventListener("click", () => {
+    audioModal.classList.add("hidden");
+  });
+
+  function unlockAudioOnce() {
+    tryPlayWithSound();
+    if (clickSound) {
+      clickSound.muted = false;
+      clickSound.currentTime = 0;
+    }
+    document.removeEventListener("click", unlockAudioOnce);
+    document.removeEventListener("keydown", unlockAudioOnce);
+  }
+  document.addEventListener("click", unlockAudioOnce);
+  document.addEventListener("keydown", unlockAudioOnce);
 
   bgmBtn.addEventListener("click", () => {
-    if (bgm.paused) { bgm.play().catch(() => {}); bgmBtn.textContent = "暂停BGM"; }
-    else { bgm.pause(); bgmBtn.textContent = "播放BGM"; }
+    if (bgm.paused) {
+      tryPlayWithSound();
+    } else {
+      bgm.pause();
+      setBgmLabel();
+    }
   });
 
   bgmVol.addEventListener("input", () => {
