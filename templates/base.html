@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="zh-hans">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <link rel="icon" href="/static/img/cxg.ico" type="image/x-icon" />
+  <title>雌小鬼点点乐</title>
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+  <div class="app-shell">
+    {% block content %}{% endblock %}
+  </div>
+  <script src="/static/js/game.js"></script>
+</body>
+</html>

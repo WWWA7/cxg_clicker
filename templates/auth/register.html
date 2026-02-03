@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="auth-card">
+  <h1>创建雌小鬼账户</h1>
+  <p class="sub">注册后即可保存你的进度</p>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.username }}
+    {{ form.password }}
+    {{ form.password_confirm }}
+    <button type="submit">注册</button>
+  </form>
+  <a class="link" href="/login/">已有账号？去登录</a>
+</div>
+{% endblock %}

@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block content %}
+<div id="toast" class="toast"></div>
+
+<div id="audioModal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-title">开启音频体验更佳</div>
+    <div class="modal-desc">建议开启 BGM 和点击音效，获得更好的沉浸感。</div>
+    <div class="modal-actions">
+      <button id="audioEnableBtn" class="modal-btn primary">开启音频</button>
+      <button id="audioLaterBtn" class="modal-btn">稍后</button>
+    </div>
+  </div>
+</div>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="logo-circle">雌</div>
+    <div>
+      <div class="title">雌小鬼点点乐</div>
+      <div class="subtitle">今天也要元气满满地捣蛋！</div>
+    </div>
+  </div>
+  <div class="top-stats">
+    <div class="stat-pill">总点数：<span id="totalApplesTop">{{ state.apples_total }}</span></div>
+    <div class="stat-pill">点击次数：<span id="clicksTop">{{ state.clicks }}</span></div>
+  </div>
+  <div class="userbar">
+    <span>UID：{{ request.user.username }}</span>
+    <a href="/logout/">退出</a>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="panel left">
+    <div class="panel-mini stats-hero">
+      <div class="section-title">状态</div>
+      <div class="stat-hero">
+        <div class="stat-hero-value" id="apples">{{ state.apples }}</div>
+        <div class="stat-hero-label">当前点数</div>
+      </div>
+      <div class="mini-list">
+        <div class="mini-item"><div class="mini-name">每秒获得</div><div class="mini-rule" id="perSecond">+{{ per_second }}</div></div>
+        <div class="mini-item"><div class="mini-name">每次点击</div><div class="mini-rule" id="perClick">+{{ per_click }}</div></div>
+      </div>
+    </div>
+
+    <div class="panel-mini">
+      <div class="section-title">设置</div>
+      <button id="bgmBtn" class="toggle-btn">播放BGM</button>
+      <div class="mini-item">
+        <div class="mini-name">音量</div>
+        <input id="bgmVol" type="range" min="0" max="1" step="0.01">
+      </div>
+      <div class="mini-item">
+        <div class="mini-name">小雌小鬼飘动</div>
+        <input id="spriteToggle" type="checkbox" checked>
+      </div>
+      <div class="mini-item">
+        <div class="mini-name">飘动速度</div>
+        <input id="spriteSpeed" type="range" min="0.2" max="3" step="0.1" value="0.5">
+      </div>
+    </div>
+
+    <div class="panel-mini">
+      <div class="section-title">雌小鬼成长</div>
+      <div class="upgrade-desc">每升 1 级，所有建筑每秒产出 +3%</div>
+      <button id="upgradeBtn">升级</button>
+      <div id="upgradeInfo">当前等级：{{ state.upgrade_level }}</div>
+      <div id="upgradePrice">当前价格：<span id="upgradePriceValue">{{ upgrade_price }}</span></div>
+    </div>
+
+    <div class="panel-mini">
+      <div class="section-title">排行榜</div>
+      <div id="leaderboard" class="mini-list">
+        {% for item in leaderboard %}
+        <div class="mini-item">
+          <div class="mini-name">{{ item.name }}</div>
+          <div class="mini-rule">{{ item.score }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <button id="achievementBtn" class="toggle-btn">成就面板</button>
+    <div id="achievementPanel" class="panel-mini hidden">
+      <div class="section-title">成就面板</div>
+      <div id="achievementList" class="mini-list">
+        {% for a in achievements %}
+        <div class="mini-item {{ a.unlocked|yesno:'unlocked,locked' }}">
+          <div class="mini-name">{{ a.name }}</div>
+          <div class="mini-rule">{{ a.rule }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="panel middle">
+    <div class="event-bubble hidden" id="eventBubble">雌小鬼恶作剧！点击领取 x2</div>
+    <div id="buffCountdown" class="buff-countdown hidden"></div>
+
+    <div class="big-orb" id="clickBtn">
+      <img src="/static/img/cxg.png" alt="cxg" class="orb-img" draggable="false" />
+      <div class="orb-text">恶作剧一下</div>
+    </div>
+    <div class="building-strip" id="buildingStrip"></div>
+
+    <div class="sprite-field" id="spriteField"></div>
+
+    <audio id="clickSound" src="/static/audio/click.mp3"></audio>
+    <audio id="bgm" src="/static/audio/zakozako.aac" loop></audio>
+
+    <div class="level-panel">
+      <div class="label">等级进度</div>
+      <div id="levelText" class="level-text">Level 1</div>
+      <div class="level-bar">
+        <div id="levelBar" class="level-bar-inner"></div>
+      </div>
+      <div id="levelHint" class="level-hint">0 / 800</div>
+    </div>
+  </div>
+
+  <div class="panel right">
+    <div class="section-title">
+      <div>建筑升级与购买</div>
+      <div class="section-sub">购买后显示收益加成</div>
+    </div>
+    <div class="building-list">
+      {% for b in buildings %}
+      <div class="building" id="building-{{ b.key }}" data-key="{{ b.key }}" data-amount="{{ b.amount }}">
+        <div class="building-left">
+          <img class="building-icon" src="/static/img/buildings/{{ b.key }}.png" alt="{{ b.name }}" draggable="false" />
+          <div>
+            <div class="name">{{ b.name }}</div>
+            <div class="flavor">{{ b.flavor }}</div>
+            <div class="meta">拥有：<span id="owned-{{ b.key }}">{{ b.amount }}</span></div>
+            <div class="meta effect">当前收益：<span id="effect-{{ b.key }}">+{{ b.per_second_total }}/s，+{{ b.per_click_total }}/点</span></div>
+            <div class="meta effect next">下一级收益：<span id="effect-next-{{ b.key }}">+{{ b.per_second_next }}/s，+{{ b.per_click_next }}/点</span></div>
+          </div>
+        </div>
+        <div class="actions">
+          <div class="price">价格：<span id="price-{{ b.key }}">{{ b.price }}</span></div>
+          <button class="buy-btn" data-key="{{ b.key }}">购买</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="panel-mini">
+      <div class="section-title">建筑升级卡</div>
+      <div id="cardList" class="mini-list">
+        {% for c in cards %}
+        <div class="mini-item">
+          <div class="mini-name">{{ c.name }}</div>
+          <div class="mini-rule">{{ c.desc }}（{{ c.cost }}）</div>
+          {% if c.owned %}
+            <div class="mini-rule">已拥有</div>
+          {% else %}
+            <button class="buy-card-btn" data-key="{{ c.key }}">购买</button>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
