@@ -1,5 +1,6 @@
 @echo off
 setlocal
+cd /d "%~dp0"
 
 echo [1/6] Create venv...
 python -m venv .venv
@@ -8,7 +9,7 @@ echo [2/6] Activate venv...
 call .venv\Scripts\activate
 
 echo [3/6] Install requirements...
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 
 echo [4/6] Migrate database...
 python manage.py makemigrations game

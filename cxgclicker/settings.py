@@ -80,3 +80,7 @@ LOGOUT_REDIRECT_URL = "/login/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+CSRF_TRUSTED_ORIGINS = [
+    "https://cxg.sxpc.de5.net",
+    "http://cxg.sxpc.de5.net",
+]

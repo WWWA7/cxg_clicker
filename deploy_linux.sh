@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -e
+cd "$(dirname "$0")"
 
 echo "[1/6] Create venv..."
 python3 -m venv .venv
@@ -8,7 +9,7 @@ echo "[2/6] Activate venv..."
 source .venv/bin/activate
 
 echo "[3/6] Install requirements..."
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 
 echo "[4/6] Migrate database..."
 python manage.py makemigrations game
