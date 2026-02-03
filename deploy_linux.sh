@@ -20,4 +20,4 @@ ADMIN_PASS=${ADMIN_PASS:-admin123}
 python manage.py shell -c "from django.contrib.auth import get_user_model; User=get_user_model(); User.objects.filter(username='$ADMIN_USER').exists() or User.objects.create_superuser('$ADMIN_USER','','$ADMIN_PASS')"
 
 echo "[6/6] Run server..."
-python manage.py runserver
+python manage.py runserver 0.0.0.0:9001
