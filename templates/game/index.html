@@ -70,18 +70,6 @@
       <div id="upgradePrice">当前价格：<span id="upgradePriceValue">{{ upgrade_price }}</span></div>
     </div>
 
-    <div class="panel-mini">
-      <div class="section-title">排行榜</div>
-      <div id="leaderboard" class="mini-list">
-        {% for item in leaderboard %}
-        <div class="mini-item">
-          <div class="mini-name">{{ item.name }}</div>
-          <div class="mini-rule">{{ item.score }}</div>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-
     <button id="achievementBtn" class="toggle-btn">成就面板</button>
     <div id="achievementPanel" class="panel-mini hidden">
       <div class="section-title">成就面板</div>
