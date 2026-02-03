@@ -151,11 +151,6 @@ function formatInitialNumbers() {
     const b = formatNumber(parseFloat(nums[1] || "0"));
     el.textContent = `+${a}/s，+${b}/点`;
   });
-
-  document.querySelectorAll("#leaderboard .mini-rule").forEach(el => {
-    const raw = parseNumber(el.textContent);
-    if (!isNaN(raw)) el.textContent = formatNumber(raw);
-  });
 }
 
 let currentPerClick = 1;
@@ -362,17 +357,6 @@ async function applyState(data) {
     rebuildStrip();
   }
 
-  if (data.leaderboard) {
-    const lb = document.getElementById("leaderboard");
-    lb.innerHTML = "";
-    data.leaderboard.forEach(item => {
-      const row = document.createElement("div");
-      row.className = "mini-item";
-      row.innerHTML = `<div class="mini-name">${item.name}</div><div class="mini-rule">${formatNumber(item.score)}</div>`;
-      lb.appendChild(row);
-    });
-  }
-
   const eventBubble = document.getElementById("eventBubble");
   if (data.event && data.event.active) {
     eventBubble.classList.remove("hidden");
@@ -441,6 +425,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   const sound = document.getElementById("clickSound");
 
   clickBtn.addEventListener("click", () => {
+    clickBtn.classList.add("hit");
+    setTimeout(() => clickBtn.classList.remove("hit"), 150);
+
     pendingClicks += 1;
     const currentClicks = parseNumber(document.getElementById("clicksTop").textContent) + 1;
     document.getElementById("clicksTop").textContent = formatNumber(currentClicks);
@@ -543,9 +530,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   function unlockAudio() {
     bgm.muted = false;
     bgm.volume = parseFloat(bgmVol.value);
-    if (bgm.paused) {
-      bgm.play().catch(() => {});
-    }
     document.removeEventListener("click", unlockAudio);
     document.removeEventListener("keydown", unlockAudio);
   }

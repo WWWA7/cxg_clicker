@@ -5,7 +5,6 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
-from django.core.cache import cache
 from .forms import RegisterForm
 from .models import Building, UserBuilding, GameState, Achievement, UserAchievement, UpgradeCard, UserUpgradeCard
 from .services import (
@@ -72,12 +71,6 @@ def index(request):
     per_second, per_click = compute_rates(request.user, state.upgrade_level, state.buff_multiplier)
     upgrade_price = int(200000 * (1.2 ** state.upgrade_level))
 
-    leaderboard = cache.get("leaderboard")
-    if leaderboard is None:
-        top = GameState.objects.order_by("-apples_total")[:5]
-        leaderboard = [{"name": t.user.username, "score": t.apples_total} for t in top]
-        cache.set("leaderboard", leaderboard, 10)
-
     ua_map = {ua.achievement_id: ua.unlocked for ua in UserAchievement.objects.filter(user=request.user)}
     achievements = [{"name": a.name, "rule": a.rule, "unlocked": ua_map.get(a.id, False)} for a in Achievement.objects.all()]
 
@@ -100,7 +93,6 @@ def index(request):
         "per_second": int(per_second),
         "per_click": int(per_click),
         "upgrade_price": upgrade_price,
-        "leaderboard": leaderboard,
         "achievements": achievements,
         "cards": cards,
     })
@@ -114,7 +106,6 @@ def state_api(request):
         state.buff_ends_at = None
         state.save()
 
-    # 随机事件
     now = timezone.now()
     if not state.event_expires_at or now > state.event_expires_at:
         if not state.last_event_at or (now - state.last_event_at).total_seconds() > 60:
@@ -140,12 +131,6 @@ def state_api(request):
             "per_click_next": b.base_per_click * (ub.amount + 1) * mult,
         })
 
-    leaderboard = cache.get("leaderboard")
-    if leaderboard is None:
-        top = GameState.objects.order_by("-apples_total")[:5]
-        leaderboard = [{"name": t.user.username, "score": t.apples_total} for t in top]
-        cache.set("leaderboard", leaderboard, 10)
-
     return JsonResponse({
         "apples": state.apples,
         "apples_total": state.apples_total,
@@ -154,7 +139,6 @@ def state_api(request):
         "per_second": int(per_second),
         "per_click": int(per_click),
         "buildings": buildings,
-        "leaderboard": leaderboard,
         "event": {
             "active": bool(state.event_expires_at and now < state.event_expires_at),
             "id": state.event_id,
@@ -203,7 +187,6 @@ def buy_api(request):
     ub.amount += 1
     ub.save()
     state.save()
-    cache.delete("leaderboard")
 
     mult = get_building_multiplier(request.user, building)
     next_price = get_price(building, ub.amount)
@@ -234,7 +217,6 @@ def upgrade_api(request):
     state.apples -= price
     state.upgrade_level += 1
     state.save()
-    cache.delete("leaderboard")
 
     per_second, per_click = compute_rates(request.user, state.upgrade_level, state.buff_multiplier)
 
