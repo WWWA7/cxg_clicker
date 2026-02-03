@@ -18,6 +18,6 @@ echo [5/6] Create superuser if missing...
 python manage.py shell -c "from django.contrib.auth import get_user_model; User=get_user_model(); import os; u=os.getenv('ADMIN_USER','admin'); p=os.getenv('ADMIN_PASS','admin123'); User.objects.filter(username=u).exists() or User.objects.create_superuser(u,'',p)"
 
 echo [6/6] Run server...
-python manage.py runserver
+python manage.py runserver 0.0.0.0:9001
 
 endlocal
